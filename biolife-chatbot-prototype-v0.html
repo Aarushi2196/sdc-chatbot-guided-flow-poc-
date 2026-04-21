@@ -702,22 +702,41 @@ function escapeHTML(str) {
   return div.innerHTML;
 }
 
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function keywordMatches(text, keyword) {
+  var normalizedKeyword = keyword.toLowerCase().trim();
+  if (!normalizedKeyword) return false;
+  var pattern = escapeRegex(normalizedKeyword).replace(/\s+/g, '\\s+');
+  var regex = new RegExp('\\b' + pattern + '\\b', 'i');
+  return regex.test(text);
+}
+
 function matchIntent(userText) {
   var lower = userText.toLowerCase().trim();
   var bestMatch = null;
   var bestScore = 0;
+  var bestPriority = -1;
+  var categoryPriority = {
+    "manage_appointment": 2,
+    "appointment_scheduling": 1
+  };
   var keys = Object.keys(NLU_CATEGORIES);
   for (var i = 0; i < keys.length; i++) {
     var key = keys[i];
     var cat = NLU_CATEGORIES[key];
+    var priority = categoryPriority[key] || 0;
     var score = 0;
     for (var j = 0; j < cat.keywords.length; j++) {
-      if (lower.indexOf(cat.keywords[j].toLowerCase()) !== -1) {
+      if (keywordMatches(lower, cat.keywords[j])) {
         score += cat.keywords[j].split(' ').length;
       }
     }
-    if (score > bestScore) {
+    if (score > bestScore || (score === bestScore && score > 0 && priority > bestPriority)) {
       bestScore = score;
+      bestPriority = priority;
       bestMatch = { categoryKey: key, category: cat, score: score };
     }
   }

@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BioLife Chatbot - Hybrid Guided Flow + NLU Prototype</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  background: #f0f2f5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.chatbot-wrapper {
+  width: 420px;
+  max-width: 100%;
+  height: 700px;
+  max-height: 90vh;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.chat-header {
+  background: linear-gradient(135deg, #f47920 0%, #e85d04 50%, #dc2626 100%);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.chat-header h1 {
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: -0.3px;
+}
+
+.header-actions { display: flex; gap: 12px; align-items: center; }
+
+.header-btn {
+  background: none; border: none; color: #fff; font-size: 18px;
+  cursor: pointer; opacity: 0.9; transition: opacity 0.2s;
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+}
+.header-btn:hover { opacity: 1; }
+
+.header-accent {
+  height: 3px;
+  background: linear-gradient(90deg, #f47920, #fbbf24, #f47920);
+  flex-shrink: 0;
+}
+
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  scroll-behavior: smooth; background: #fafafa;
+}
+.chat-messages::-webkit-scrollbar { width: 6px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background: #c5c5c5; border-radius: 3px; }
+
+.message-row {
+  display: flex; gap: 8px; align-items: flex-start;
+  max-width: 95%; animation: fadeInUp 0.3s ease;
+}
+.message-row.bot { align-self: flex-start; }
+.message-row.user { align-self: flex-end; flex-direction: row-reverse; }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.bot-avatar { width: 32px; height: 32px; flex-shrink: 0; margin-top: 2px; }
+.bot-avatar svg { width: 32px; height: 32px; }
+
+.message-bubble {
+  padding: 12px 16px; border-radius: 16px;
+  font-size: 14px; line-height: 1.5; max-width: 100%; word-wrap: break-word;
+}
+.message-row.bot .message-bubble { background: #f3f4f6; color: #1f2937; border-top-left-radius: 4px; }
+.message-row.user .message-bubble { background: #e8f4fd; color: #1f2937; border-top-right-radius: 4px; }
+.message-bubble a { color: #2563eb; text-decoration: underline; }
+
+.signup-cta {
+  display: flex; align-items: center; gap: 10px; background: #fff;
+  border: 1.5px solid #e5e7eb; border-radius: 12px; padding: 10px 16px;
+  cursor: pointer; transition: box-shadow 0.2s, border-color 0.2s; max-width: 260px;
+}
+.signup-cta:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-color: #f47920; }
+.signup-cta .cta-text { font-weight: 700; font-size: 15px; color: #1f2937; }
+.signup-cta .cta-arrow { color: #f47920; font-size: 18px; margin-left: auto; }
+
+/* CHIPS / BUTTONS - 2 per row, equal size */
+.chips-container {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; padding: 4px 0; animation: fadeInUp 0.3s ease;
+}
+.chip-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 12px 10px; background: #fff; border: 1.5px solid #e0e0e0;
+  border-radius: 20px; font-size: 13px; color: #2563eb; font-weight: 500;
+  cursor: pointer; transition: all 0.2s; text-align: center;
+  line-height: 1.3; min-height: 46px; word-break: break-word;
+  box-sizing: border-box; width: 100%;
+}
+.chip-btn:hover { background: #f0f4ff; border-color: #2563eb; box-shadow: 0 2px 6px rgba(37,99,235,0.12); }
+.chip-btn:active { transform: scale(0.97); }
+.chip-btn .chip-icon { font-size: 15px; flex-shrink: 0; }
+.chip-btn.l1 { padding: 12px 10px; font-size: 13.5px; }
+
+.language-chips { grid-template-columns: 1fr 1fr; }
+.language-chips .chip-btn { justify-content: center; font-size: 15px; font-weight: 600; }
+.donor-type-chips { grid-template-columns: 1fr 1fr; }
+.donor-type-chips .chip-btn { text-align: center; justify-content: center; line-height: 1.3; }
+
+.typing-indicator { display: flex; gap: 4px; padding: 12px 16px; align-items: center; }
+.typing-indicator .dot {
+  width: 8px; height: 8px; background: #9ca3af; border-radius: 50%;
+  animation: typingBounce 1.2s infinite;
+}
+.typing-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+
+.chat-input-area {
+  padding: 12px 16px; border-top: 1px solid #e5e7eb;
+  display: flex; align-items: center; gap: 10px; background: #fff; flex-shrink: 0;
+}
+.chat-input {
+  flex: 1; border: 1.5px solid #e0e0e0; border-radius: 24px;
+  padding: 12px 18px; font-size: 14px; outline: none;
+  transition: border-color 0.2s; background: #fafafa;
+}
+.chat-input:focus { border-color: #f47920; background: #fff; }
+.chat-input::placeholder { color: #9ca3af; }
+
+.send-btn {
+  width: 42px; height: 42px; background: #f47920; border: none;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.2s, transform 0.2s; flex-shrink: 0;
+}
+.send-btn:hover { background: #e86b10; }
+.send-btn:active { transform: scale(0.95); }
+.send-btn svg { width: 18px; height: 18px; }
+
+.restart-bar { padding: 8px 16px; text-align: center; flex-shrink: 0; background: #fff; }
+.restart-btn {
+  background: none; border: 1px dashed #d1d5db; border-radius: 16px;
+  padding: 6px 16px; font-size: 12px; color: #6b7280; cursor: pointer; transition: all 0.2s;
+}
+.restart-btn:hover { border-color: #f47920; color: #f47920; background: #fff7ed; }
+
+.disclaimer-text { font-size: 12.5px; color: #6b7280; line-height: 1.5; }
+.disclaimer-text a { color: #f47920; text-decoration: none; font-weight: 500; }
+
+.nlu-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a); border: 1px solid #fbbf24;
+  border-radius: 8px; padding: 3px 10px; font-size: 11px; color: #92400e;
+  font-weight: 600; margin-bottom: 6px;
+}
+
+.nlu-opening { font-size: 13.5px; color: #1f2937; line-height: 1.5; margin-bottom: 8px; }
+.nlu-bullet-list { list-style: none; padding: 0; margin: 8px 0; }
+.nlu-bullet-list li { padding: 6px 0 6px 18px; position: relative; font-size: 13px; color: #374151; line-height: 1.55; }
+.nlu-bullet-list li::before { content: '\2022'; color: #f47920; font-weight: 700; font-size: 16px; position: absolute; left: 2px; top: 5px; }
+.nlu-closing { font-size: 13px; color: #6b7280; line-height: 1.5; margin-top: 8px; font-style: italic; }
+
+@media (max-width: 480px) {
+  .chatbot-wrapper { width: 100%; height: 100vh; max-height: 100vh; border-radius: 0; }
+  body { padding: 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="chatbot-wrapper">
+  <div class="chat-header">
+    <h1>Hey There!</h1>
+    <div class="header-actions">
+      <button class="header-btn" title="Menu" onclick="showMenu()">&#8942;</button>
+      <button class="header-btn" title="Minimize">&#8722;</button>
+      <button class="header-btn" title="Close">&#10005;</button>
+    </div>
+  </div>
+  <div class="header-accent"></div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <div class="restart-bar">
+    <button class="restart-btn" onclick="restartChat()">&#8635; Restart Conversation</button>
+  </div>
+  <div class="chat-input-area">
+    <input type="text" class="chat-input" id="chatInput" placeholder="Type a message"
+           autocomplete="off" onkeydown="if(event.key==='Enter')sendUserMessage()">
+    <button class="send-btn" id="sendBtn" onclick="sendUserMessage()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// DATA LAYER - From updated "Guided FLow + Free Text Intents.xlsx"
+// ============================================================
+
+const L1_CATEGORIES = {
+  "payments_card": {
+    label: "Payments & Card",
+    icon: "\ud83d\udcb3",
+    l2: {
+      "PaymentOverview":  { label: "Payment Overview",  icon: "\u2139\ufe0f", followUps: ["MissingPayment","PaymentTiming","CheckBalance","Taxes"] },
+      "MissingPayment":   { label: "Missing Payment",   icon: "\u2753",       followUps: ["PaymentTiming","CheckBalance","TransferFunds","Taxes"] },
+      "PaymentTiming":    { label: "Payment Timing",    icon: "\u23f3",       followUps: ["MissingPayment","CheckBalance","TransferFunds","Taxes"] },
+      "CheckBalance":     { label: "Check Balance",     icon: "\ud83d\udcca", followUps: ["LostCard","TransferFunds","ActivateCard","MissingPayment"] },
+      "TransferFunds":    { label: "Transfer Funds",    icon: "\ud83d\udcb8", followUps: ["CheckBalance","LostCard","ActivateCard","PaymentTiming"] },
+      "Taxes":            { label: "Taxes",             icon: "\ud83c\udfe6", followUps: ["PaymentOverview","MissingPayment","PaymentTiming","CheckBalance"] }
+    }
+  },
+  "appointments": {
+    label: "Appointments",
+    icon: "\ud83d\udcc5",
+    l2: {
+      "ScheduleOnline":          { label: "Schedule Online",          icon: "\ud83d\uddd3\ufe0f", followUps: ["AppointmentAvailability","VerifySsnAndName","RescheduleSteps","CheckDayAndTime"] },
+      "AppointmentAvailability": { label: "Appointment Availability", icon: "\ud83d\udcc5",       followUps: ["CheckDayAndTime","WalkInAppointments","ScheduleOnline","RescheduleSteps"] },
+      "CheckDayAndTime":         { label: "Check Day & Time",        icon: "\ud83d\udd52",       followUps: ["AppointmentAvailability","WalkInAppointments","ScheduleOnline","RescheduleSteps"] },
+      "WalkInAppointments":      { label: "Walk-In Appointments",    icon: "\ud83d\udeb6",       followUps: ["AppointmentAvailability","CheckDayAndTime","ScheduleOnline","ConfirmAppointmentDetails"] },
+      "RescheduleSteps":         { label: "Reschedule Steps",        icon: "\ud83d\udd01",       followUps: ["CancelSteps","ConfirmAppointmentDetails","RescheduleAfterClosure","VerificationIssueReschedule"] },
+      "VerifySsnAndName":        { label: "Verify SSN & Name",       icon: "\ud83d\udd0e",       followUps: ["AcceptableIdAndProof","FirstVisitCheck","PrepForAppointment","ScheduleOnline"] }
+    }
+  },
+  "eligibility": {
+    label: "Eligibility",
+    icon: "\ud83e\ude78",
+    l2: {
+      "VerifyEligibility":    { label: "Verify Eligibility",   icon: "\ud83d\udd0e", followUps: ["MedicationInfo","AcceptableIdAndProof","ChronicConditions","DeferralStatus"] },
+      "MedicationInfo":       { label: "Medication Info",      icon: "\ud83d\udc8a", followUps: ["Antibiotics","BirthControl","SurgeryHistory","RecentVaccination"] },
+      "AcceptableIdAndProof": { label: "Acceptable ID & Proof",icon: "\ud83e\udeaa", followUps: ["ProveYourAddress","VerifySsnAndName","FirstVisitCheck","PrepForAppointment"] },
+      "ChronicConditions":    { label: "Chronic Conditions",   icon: "\ud83e\ude7a", followUps: ["ProteinHeartEligibility","Allergies","Pregnancy","BloodTransfusion"] },
+      "DeferralStatus":       { label: "Deferral Status",      icon: "\u23f1\ufe0f", followUps: ["ReturnAfterBreak","DeferralComplications","VerifyEligibility","AppealClarification"] },
+      "RecentVaccination":    { label: "Recent Vaccination",   icon: "\ud83d\udc89", followUps: ["MedicationInfo","VerifyEligibility","DeferralStatus"] }
+    }
+  },
+  "coupons_promotions": {
+    label: "Coupons & Promotions",
+    icon: "\ud83c\udff7\ufe0f",
+    l2: {
+      "CouponsAndPromos": { label: "Coupons & Promos",  icon: "\ud83c\udff7\ufe0f", followUps: ["CenterPromotions","EarnPoints","RedeemPoints","ReferAFriend"] },
+      "ReferAFriend":     { label: "Refer a Friend",    icon: "\ud83e\uddd1\u200d\ud83e\udd1d\u200d\ud83e\uddd1", followUps: ["EarnPoints","RedeemPoints","CouponsAndPromos","CenterPromotions"] },
+      "EarnPoints":       { label: "Earn Points",       icon: "\u2b50",              followUps: ["RedeemPoints","ReferAFriend","CenterPromotions","CouponsAndPromos"] },
+      "RedeemPoints":     { label: "Redeem Points",     icon: "\ud83c\udfaf",        followUps: ["EarnPoints","ReferAFriend","CouponsAndPromos","CenterPromotions"] },
+      "CenterPromotions": { label: "Center Promotions",  icon: "\ud83c\udf9f\ufe0f", followUps: ["CouponsAndPromos","ReferAFriend","EarnPoints","RedeemPoints"] }
+    }
+  },
+  "account_app": {
+    label: "Account & App Help",
+    icon: "\ud83d\udee0\ufe0f",
+    l2: {
+      "LoginIssues":        { label: "Login Issues",         icon: "\ud83d\udd10", followUps: ["AccountAndTechHelp","AppOrWebsiteIssues","IdMismatch","VerifySsnAndName"] },
+      "AppOrWebsiteIssues": { label: "App / Website Issues", icon: "\ud83d\udc1e", followUps: ["LoginIssues","AccountAndTechHelp","WebsiteIssue","TechnicalQuestions"] },
+      "AccountAndTechHelp": { label: "Account & Tech Help",  icon: "\ud83d\udd27", followUps: ["LoginIssues","AppOrWebsiteIssues","IdMismatch","WebsiteIssue"] },
+      "VerifySsnAndName_acc":{ label: "Verify SSN & Name",   icon: "\ud83d\udd0e", followUps: ["AcceptableIdAndProof","FirstVisitCheck","PrepForAppointment","LoginIssues"] }
+    }
+  },
+  "find_center": {
+    label: "Find a Center",
+    icon: "\ud83d\udccd",
+    l2: {
+      "ChangeMyCenter":    { label: "Change My Center",    icon: "\ud83d\udd01", followUps: ["FindACenter","CenterHours","ClosureDetails","UnexpectedClosure"] },
+      "FindACenter":       { label: "Find a Center",       icon: "\ud83d\uddfa\ufe0f", followUps: ["CenterHours","ChangeMyCenter","ClosureDetails","CenterOperations"] },
+      "CenterHours":       { label: "Center Hours",        icon: "\ud83d\udd58", followUps: ["FindACenter","ChangeMyCenter","ClosureDetails","UnexpectedClosure"] },
+      "ClosureDetails":    { label: "Closure Details",     icon: "\ud83d\udeaa", followUps: ["UnexpectedClosure","CenterHours","FindACenter","ChangeMyCenter"] },
+      "UnexpectedClosure": { label: "Unexpected Closure",  icon: "\u26a0\ufe0f", followUps: ["ClosureDetails","CenterHours","FindACenter","ChangeMyCenter"] },
+      "CheckDayAndTime_fc":{ label: "Check Day & Time",    icon: "\ud83d\udd52", followUps: ["AppointmentAvailability","ScheduleOnline","FindACenter","CenterHours"] }
+    }
+  }
+};
+
+// Intent responses for all intents referenced anywhere
+const INTENT_RESPONSES = {
+  "PaymentOverview":           { label: "Payment Overview",         response: "BioLife compensates donors for their time and effort. The exact amount varies by center, location, and active promotions. Opt in for emails/texts and download the BioLife App for personalized weekly offers!" },
+  "ReturningDonorPay":         { label: "Returning Donor Pay",      response: "Returning donors receive a personalized offer every Monday by 7:30 a.m. CT. Donating more frequently can lead to higher compensation. Stay opted in for notifications." },
+  "CompensationInfo":          { label: "Compensation Info",        response: "Compensation varies by center, location, and current promotions. Download the BioLife App to see your personalized offers each week." },
+  "QAHowMuchDonorsArePaid":    { label: "How Much Are Donors Paid", response: "New donors may earn up to $750 depending on location-specific promotions. Returning donors get personalized weekly offers. Check your account after creating a profile." },
+  "RewardsAndPayments":        { label: "Rewards & Payments",       response: "Your compensation is loaded onto your BioLife debit card after each donation. You can also earn additional rewards through the My BioLife Rewards program." },
+  "PaymentIssues":             { label: "Payment Issues",           response: "If your payment is missing or incorrect, your card is typically loaded within 24 hours. For unresolved issues, contact the debit card provider at 888-472-0099 or submit a contact us form." },
+  "NewDonorFees":              { label: "New Donor Fees",           response: "New donors may earn up to $750 depending on location-specific promotions. After creating a profile, check your account for your personalized bonus offer." },
+  "MissingPayment":            { label: "Missing Payment",          response: "Your BioLife debit card is usually loaded right away but can take up to 24 hours. If it has been longer, contact the debit card provider at 888-472-0099." },
+  "PaymentTiming":             { label: "Payment Timing",           response: "After each successful donation, your debit card is typically loaded with funds immediately, but it can take up to 24 hours. For delays, call 888-472-0099." },
+  "Taxes":                     { label: "Taxes",                    response: "Takeda complies with all reporting requirements for plasma donation fees. Donors are encouraged to consult their tax specialists. Plasma donors will not receive tax documents from Takeda." },
+
+  "CheckBalance":              { label: "Check Balance",            response: "Check your balance through the BioLife mobile app or cardholder dashboard. For card issues or missing funds, contact North Lane at 888-472-0099." },
+  "LostCard":                  { label: "Lost Card",                response: "Visit your local center for a replacement or call 1-888-472-0099. There is a $4.95 replacement fee (free if expired). Funds auto-transfer to the new card." },
+  "TransferFunds":             { label: "Transfer Funds",           response: "Log into the cardholder website and click the Access $ tab. You will need your bank account/routing numbers. Transfers under $300: $1.95 fee, 2-3 business days." },
+  "ActivateCard":              { label: "Activate Card",            response: "Call 888-472-0099 or visit login.mypaymentvault.com/activate to set your PIN. Sign the back of your card. For PIN resets, contact North Lane." },
+  "CardSupport":               { label: "Card Support",             response: "For PIN resets, transaction issues, or suspicious activity, visit the cardholder website or call North Lane at 888-472-0099." },
+  "DebitCardBalanceInquiry":   { label: "Debit Card Balance Inquiry", response: "Check your balance via the BioLife app, cardholder dashboard, or text BAL to 445544 after registering your mobile number." },
+  "LostDebitCard":             { label: "Lost Debit Card",          response: "Report a lost card by calling 1-888-472-0099 or visiting your local center. A $4.95 replacement fee applies unless the card expired." },
+
+  "CouponsAndPromos":          { label: "Coupons & Promos",         response: "Promotions and offers vary by center and donor. Find current offers by logging into BioLifePlasma.com or checking your email. Terms may apply." },
+  "CenterPromotions":          { label: "Center Promotions",        response: "Check your center's page on the website or app for special promotions. Opt in for communications to get the latest offers by email." },
+
+  "VerifyEligibility":         { label: "Verify Eligibility",       response: "Eligibility is determined at your scheduled appointment. You must be 18+, weigh 110+ lbs, and be in good health. Visit the \"Who Can Donate\" page for details." },
+  "WhoCanDonate":              { label: "Who Can Donate",           response: "You must be at least 18, weigh 110+ lbs, be in good health, and provide proof of local address within ~40 miles of the center." },
+  "DonorEligibility":          { label: "Donor Eligibility",        response: "Your eligibility is evaluated during your visit through a health history review and vitals check." },
+  "Eligibility":               { label: "Eligibility",              response: "BioLife evaluates eligibility at each visit: age 18+, weight 110+ lbs, good health, valid ID with proof of address." },
+  "EligibilityBasics":         { label: "Eligibility Basics",       response: "Basic requirements: 18+ years old, 110+ lbs, overall good health, valid photo ID, and proof of local address." },
+  "EligibilityScreening":      { label: "Eligibility Screening",    response: "At your first visit, our team reviews your health history and checks vitals to confirm eligibility. Visit the Health and Nutrition page for prep tips." },
+  "GeneralEligibility":        { label: "General Eligibility",      response: "General eligibility requires meeting age, weight, and health criteria. Specific conditions are evaluated by our medical staff during your visit." },
+
+  "MedicationInfo":            { label: "Medication Info",           response: "You may donate while taking most prescription medications. Eligibility depends on the medication, dosage, and underlying condition and will be determined at your appointment." },
+  "MedicalPaperwork":          { label: "Medical Paperwork",        response: "Medical documents can be faxed or mailed to your center. Once received, a Medical Support Specialist will contact you after review." },
+  "Medications":               { label: "Medications",              response: "Most medications do not require a Healthcare Provider Letter. Your eligibility, including any deferral period, is determined upon review at your appointment." },
+  "MedListAndDocs":            { label: "Med List & Docs",          response: "Bring a list of current medications and be ready to share your health history. In some cases, a health certificate from your doctor may be needed." },
+  "MedicalDocumentation":      { label: "Medical Documentation",    response: "If medical documentation is required, templates will be provided at your appointment. Documents can be faxed or mailed using the info on the cover page." },
+  "HealthGuidance":            { label: "Health Guidance",          response: "For tips on staying healthy before and after donation, visit the Health and Nutrition page on the BioLife website." },
+
+  "ScheduleOnline":            { label: "Schedule Online",          response: "Log into your BioLife account, go to the Appointment Scheduler, choose your center, date, and time, and confirm. You can book up to 6 appointments or 21 days out." },
+  "AppointmentAvailability":   { label: "Appointment Availability", response: "Appointments may fill quickly. Check the website or app regularly. Walk-ins are welcome but scheduling ahead is best." },
+  "CheckDayAndTime":           { label: "Check Day & Time",         response: "Log into your BioLife account and click \"Donate\" to see the Appointment Scheduler with available days and times at your preferred center." },
+  "WalkInAppointments":        { label: "Walk-In Appointments",     response: "Walk-ins are welcome but availability is not guaranteed. Schedule ahead via the BioLife website or app to ensure your spot." },
+  "ScheduleMultiple":          { label: "Schedule Multiple",        response: "You can schedule up to 6 future appointments or book up to 21 days in advance. Healthy donors may donate twice per 7-day period with at least one day between." },
+  "PhysicalAppointmentScheduling": { label: "Physical Appointment", response: "Log into your account, select \"Physical with Donation\" in the Appointment Scheduler, then choose your center, date, and time." },
+
+  "RescheduleSteps":           { label: "Reschedule Steps",         response: "Log into your account, go to My Appointments, open the appointment, and click Reschedule. If you are having trouble, your local center can help." },
+  "CancelSteps":               { label: "Cancel Steps",             response: "Cancel anytime through My Appointments on the BioLife website or app. You can donate up to twice per 7-day period with at least one day between." },
+  "ConfirmAppointmentDetails": { label: "Confirm Details",          response: "Check your appointment time and location on the My Appointments page. If you did not get a confirmation email, make sure you are opted in for communications." },
+  "ChangeAppointments":        { label: "Change Appointments",      response: "Go to My Appointments in the BioLife app or website, select the appointment you would like to modify, and choose Reschedule or Cancel." },
+  "RescheduleAppointment":     { label: "Reschedule Appointment",   response: "Open the appointment in My Appointments and click Reschedule. You can donate up to twice per 7-day period with at least one day between." },
+  "RescheduleAfterClosure":    { label: "Reschedule After Closure", response: "Visit the BioLife website or app to find the next available appointment at your preferred location after an unexpected closure." },
+  "VerificationIssueReschedule":{ label: "Verification Issue",      response: "Check your inbox (including spam) for a confirmation email from BioLife. Click the link to verify your account and unlock scheduling." },
+  "RescheduleMultipleAppointments": { label: "Reschedule Multiple", response: "Each donation needs to be rescheduled separately. You can donate up to twice per 7-day period with at least one day between." },
+  "AutoCancelInfo":            { label: "Auto-Cancel Info",         response: "If your appointment was auto-canceled due to a center issue or deferral, you will get a notification. Your donor status may take up to 24 hours to update." },
+
+  "LoginIssues":               { label: "Login Issues",             response: "Use the same credentials for the BioLife app and website. If you forgot your password, click \"Forgot Password\" for a reset link." },
+  "AccountAndTechHelp":        { label: "Account & Tech Help",      response: "For account issues, reach out through the contact us form on the BioLife website. Common issues: password resets, profile updates, notification preferences." },
+
+  "AppOrWebsiteIssues":        { label: "App / Website Issues",     response: "Share the details of your issue along with your name and phone number using the contact us form on the BioLife website." },
+  "WebsiteIssue":              { label: "Website Issue",            response: "Try clearing your browser cache, using a different browser, or checking your connection. If problems persist, submit a report via the contact us form." },
+  "TechnicalQuestions":        { label: "Technical Questions",      response: "Submit technical questions through the contact us form on the BioLife website with your name and phone number. Our team will respond promptly." },
+
+  "FindACenter":               { label: "Find a Center",            response: "Enter your ZIP code on the Locations tab of the BioLife website or app to find centers near you with hours and details." },
+  "FindCenter":                { label: "Find Center",              response: "Use the BioLife website or app Locations tab to search by ZIP code for nearby donation centers." },
+  "CenterHours":               { label: "Center Hours",             response: "Visit the BioLife website or app, select your location, and you will see the daily schedule. Quick and easy!" },
+  "ChangeMyCenter":            { label: "Change My Center",         response: "You can donate at any BioLife location except for your yearly Physical Donation (must be within your zip code range). Info and compensation transfer with you. Email US.BioLife.Customer.Experience@Takeda.com for help." },
+  "CenterOperations":          { label: "Center Operations",        response: "Each center operates on its own schedule and may offer different promotions. Select your center on the BioLife website or app for full details." },
+  "CenterInfoAndAccess":       { label: "Center Info & Access",     response: "Search by ZIP code on the BioLife website or app for hours, directions, contact info, and current center announcements." },
+  "CenterInformation":         { label: "Center Information",       response: "Find comprehensive center details by searching your ZIP code on the BioLife website or app." },
+  "ClosureDetails":            { label: "Closure Details",          response: "Log into your account and check My Appointments. Closed days are clearly marked so you always know when your center is open." },
+  "UnexpectedClosure":         { label: "Unexpected Closure",       response: "If your center closes unexpectedly, you will get an email and see a banner on the website/app. Make sure you are opted in for updates." },
+
+  "AcceptableIdAndProof":      { label: "Acceptable ID & Proof",    response: "Bring a valid, undamaged photo ID (driver's license, state ID, passport) and proof of address (lease, utility bill, or mail postmarked within 60 days). Electronic proof accepted." },
+  "VerifySsnAndName":          { label: "Verify SSN & Name",        response: "Your SSN can usually be verified through a secure system. Bring a government-issued photo ID. If your name changed, bring a supporting document like a marriage certificate." },
+  "ProveYourAddress":          { label: "Prove Your Address",       response: "No proof needed for your first visit after moving. For future donations, bring a lease, utility bill, or mail postmarked within 60 days." },
+  "IdentityAndVerification":   { label: "Identity & Verification",  response: "Bring a valid, undamaged government-issued photo ID. For name discrepancies, bring additional supporting documents." },
+  "IdMismatch":                { label: "ID Mismatch",              response: "If your ID has missing or mismatched info, bring extra documents like a passport or name change record to help verify your details." },
+  "AddressAndResidency":       { label: "Address & Residency",      response: "You must have a permanent local address within ~40 miles of the center. Proof can be a lease, utility bill, or recent postmarked mail." },
+
+  "EarnPoints":                { label: "Earn Points",              response: "Earn loyalty points by donating, referring friends, and reaching milestones through My BioLife Rewards. No referral limits!" },
+  "RedeemPoints":              { label: "Redeem Points",            response: "Redeem points for gift cards, charitable donations, or extra funds on your BioLife Debit Card. Extra funds available within 24 hours." },
+  "RewardsAndReferrals":       { label: "Rewards & Referrals",      response: "Earn points for donating and referring friends. Redeem for gift cards, donations, or funds on your debit card. No referral limits!" },
+  "LoyaltyProgram":            { label: "Loyalty Program",          response: "My BioLife Rewards: earn points through donations, referrals, and milestones. Earn achievement badges too! Sign up on the website or app." },
+  "MyBioLifeRewardsSelection": { label: "My BioLife Rewards",       response: "Explore redemption options in the My BioLife Rewards section: gift cards, charitable donations, or funds directly to your debit card." },
+
+  "ReferAFriend":              { label: "Refer a Friend",           response: "Refer someone who has never donated at BioLife. After they complete two donations within 30 days and mention your name, you will receive a bonus. Must be an active donor." },
+  "ReferralBonus":             { label: "Referral Bonus",           response: "Bonus amount depends on your center. If delayed, contact your center or email US.BioLife.Customer.Experience@Takeda.com with your friend's name and donation location." },
+
+  "FirstTimeGuide":            { label: "First-Time Guide",         response: "Create a profile on the BioLife website or app first. This unlocks Donor Registration and the What to Expect guide. You will also get the New Donor Checklist." },
+  "FirstVisitCheck":           { label: "First Visit Check",        response: "On your first visit, we will verify your SSN quickly and securely. Check the Who Can Donate page for eligibility and what to bring." },
+  "AppointmentEssentials":     { label: "Appointment Essentials",   response: "Bring a valid photo ID, proof of address, and a list of current medications. Arrive at least 10 minutes early for your first visit." },
+  "PrepForAppointment":        { label: "Prep for Appointment",     response: "Drink water or juice the night before and day of. Eat a balanced meal within 3 hours. Check the Health and Nutrition page for more tips." },
+  "EatAndHydrate":             { label: "Eat & Hydrate",            response: "Drink plenty of water/juice before your visit and eat a balanced meal within 3 hours of donating. Visit the Health and Nutrition page for tips." },
+  "AppointmentExpectations":   { label: "What to Expect",           response: "First visit: health history review, vitals check, ID verification, then your donation. The whole process takes about 2 hours for first-timers." },
+
+  "Antibiotics":               { label: "Antibiotics",              response: "You may donate while taking antibiotics depending on the type and reason. Some require a 2-7 day deferral after treatment. Eligibility evaluated at your center." },
+  "BirthControl":              { label: "Birth Control",            response: "You may donate while taking birth control medications. Schedule an appointment and your eligibility will be evaluated at the center." },
+  "SurgeryHistory":            { label: "Surgery History",          response: "Eligibility depends on the type of surgery, timing, and recovery. Ensure incisions are healed and you have been cleared by your doctor." },
+  "ProteinHeartEligibility":   { label: "Protein / Heart",          response: "Heart conditions or abnormal protein levels may affect eligibility that day. Our staff will review your medical history before approving donation." },
+  "Allergies":                 { label: "Allergies",                response: "You may donate if symptom-free at the time. Some allergies (e.g., to center products) may affect eligibility. Schedule when symptom-free." },
+  "Pregnancy":                 { label: "Pregnancy",                response: "You cannot donate while pregnant. You may be eligible 6 months after your pregnancy ends. If breastfeeding, consult your healthcare provider." },
+  "BloodTransfusion":          { label: "Blood Transfusion",        response: "You may donate 4 months after a blood transfusion, depending on the reason. Our team will check your eligibility at the center." },
+  "RecentVaccination":         { label: "Recent Vaccination",       response: "Most vaccines do not require a waiting period, but some do. Make sure you are feeling well and symptom-free on donation day." },
+  "DeferralStatus":            { label: "Deferral Status",          response: "If deferred, your center will let you know the reason and timeline. Check the BioLife app or website scheduler for your next available appointment." },
+  "ReturnAfterBreak":          { label: "Return After Break",       response: "Returning donors may need a physical exam and screening to requalify. Schedule an appointment at your local center." },
+  "DeferralComplications":     { label: "Deferral Complications",   response: "Health screening issues or complications from a previous donation can cause a temporary deferral. Eligibility updates may take up to 24 hours." },
+  "AppealClarification":       { label: "Appeal / Clarification",   response: "Questions about your deferral? Speak with your local center in person or by phone for next steps." },
+  "TechnicalQuestions_Sp":     { label: "Technical Questions",      response: "Submit technical questions through the contact us form on the BioLife website with your name and phone number." },
+
+  "VerifySsnAndName_acc":      { label: "Verify SSN & Name",        response: "Your SSN can usually be verified through a secure system. Bring a government-issued photo ID. If your name changed, bring a supporting document like a marriage certificate." },
+  "CheckDayAndTime_fc":        { label: "Check Day & Time",         response: "Log into your BioLife account and click \"Donate\" to see the Appointment Scheduler with available days and times at your preferred center." }
+};
+
+// 14 NLU Categories
+const NLU_CATEGORIES = {
+  "payment_compensation": {
+    label: "Payment & Compensation Overview",
+    keywords: ["payment","pay","compensation","how much","money","earn","paid","donor fee","returning donor","first time pay","what do i get","how much do i earn","income","stipend","payout","prices","new donor fee","get paid","pay me","do they pay","loaded on card","pay for donat","pay first","pay new donor","what amount","do i get compensation","donor are paid","what is the pay","what are the payment","what is the compensation","how much do you pay","financially","donor payout","new donor payout","receive payment"],
+    opening: "Here\u2019s what you need to know about payments and compensation at BioLife:",
+    bullets: [
+      "Compensation varies by center, location, and active promotions. New donors may earn up to <strong>$750</strong> depending on location-specific offers.",
+      "Returning donors receive a <strong>personalized offer every Monday by 7:30 a.m. CT</strong> \u2014 donating more frequently can lead to higher compensation.",
+      "Payments are loaded onto your <strong>BioLife debit card</strong> after each donation and are typically available immediately (up to 24 hours).",
+      "You can also earn additional rewards through the <strong>My BioLife Rewards</strong> program.",
+      "For missing or incorrect payments, contact the debit card provider at <strong>888-472-0099</strong> or submit a contact us form."
+    ],
+    closing: "Opt in for emails/texts and download the BioLife App to stay up to date on your personalized offers!",
+    includedIntents: ["PaymentOverview","ReturningDonorPay","CompensationInfo","QAHowMuchDonorsArePaid","RewardsAndPayments","PaymentIssues","NewDonorFees"],
+    followUps: ["MissingPayment","PaymentTiming","CheckBalance","Taxes"]
+  },
+  "card_balance": {
+    label: "Card & Balance Support",
+    keywords: ["debit card","balance","lost card","activate card","transfer fund","transfer money","funds","north lane","replacement card","pin","biolife card","withdraw","cash from card","card activation","register my card","depositing","take money off","get money off","card declined","money won't load","didn't get my money","where is my money","didn't receive money","card services","card issue","cancel my debit","card not working","card stopped working","check biolife card","compensation card","card money transfer","get cash from","money off my","money from card","card to bank","negative balance","never received my compensation","didn't get my compensation","money transfer","dispute","transaction","i donated but"],
+    opening: "Here\u2019s everything you need to know about your BioLife debit card:",
+    bullets: [
+      "Check your balance via the <strong>BioLife app</strong>, cardholder dashboard, or text <strong>BAL to 445544</strong> after registering your mobile number.",
+      "To activate your card, call <strong>888-472-0099</strong> or visit <strong>login.mypaymentvault.com/activate</strong> to set your PIN.",
+      "Transfer funds by logging into the cardholder website and clicking the <strong>Access $ tab</strong>. Transfers under $300: $1.95 fee, 2\u20133 business days.",
+      "Lost or stolen card? Visit your local center or call <strong>1-888-472-0099</strong>. Replacement fee is $4.95 (free if expired). Funds auto-transfer to the new card.",
+      "For PIN resets, transaction issues, or suspicious activity, contact <strong>North Lane at 888-472-0099</strong>."
+    ],
+    closing: "Be sure to sign the back of your card once you receive it.",
+    includedIntents: ["CheckBalance","LostCard","TransferFunds","ActivateCard","CardSupport","DebitCardBalanceInquiry","LostDebitCard"],
+    followUps: ["MissingPayment","PaymentTiming","Taxes","PaymentOverview"]
+  },
+  "coupons_promotions_nlu": {
+    label: "Coupons, Promotions & Offers",
+    keywords: ["coupon","promo","promotion","discount","deal","offer","special","bonus offer","current deals","special program","fees at my center","staying updated","latest offers","center specific","current offers","center promotions","promotions at my center","information about fees"],
+    opening: "BioLife offers a variety of promotions and deals for donors:",
+    bullets: [
+      "Promotions and offers <strong>vary by center and donor status</strong>.",
+      "Find current offers by logging into <strong>BioLifePlasma.com</strong> or checking your center\u2019s page on the website or app.",
+      "Opt in for email and text communications to receive the <strong>latest deals</strong> directly."
+    ],
+    closing: "Terms and conditions may apply to certain offers. Check back often for new promotions!",
+    includedIntents: ["CouponsAndPromos","CenterPromotions"],
+    followUps: ["EarnPoints","RedeemPoints","ReferAFriend","RewardsAndReferrals"]
+  },
+  "eligibility_overview": {
+    label: "Eligibility Overview",
+    keywords: ["eligible","eligibility","can i donate","who can donate","qualify","requirements","am i eligible","donate plasma","criteria","how often","deferral","deferred","deferment","ineligible","suspended from donat","can i come back","temporary deferral","short term deferral","how long do i wait","travel","traveled","international travel","stationed","can i donate if","will i be able to donate","donor eligibility","disqualif"],
+    opening: "Here are the key eligibility requirements to donate plasma at BioLife:",
+    bullets: [
+      "You must be at least <strong>18 years old</strong> and weigh <strong>110+ lbs</strong>.",
+      "You must be in <strong>overall good health</strong> at the time of your visit.",
+      "Bring a <strong>valid photo ID</strong> and <strong>proof of local address</strong> within ~40 miles of the center.",
+      "Eligibility is evaluated at each visit through a <strong>health history review and vitals check</strong>.",
+      "Visit the <strong>\"Who Can Donate\"</strong> page on the BioLife website for full details."
+    ],
+    closing: "For preparation tips, check out the Health and Nutrition page on the BioLife website.",
+    includedIntents: ["VerifyEligibility","WhoCanDonate","DonorEligibility","Eligibility","EligibilityBasics","EligibilityScreening","GeneralEligibility"],
+    followUps: ["MedicationInfo","ChronicConditions","DeferralStatus","ScheduleOnline"]
+  },
+  "medication_medical": {
+    label: "Medication & Medical Documentation",
+    keywords: ["medication","medicine","prescription","antibiotic","birth control","drug","medical document","paperwork","doctor letter","healthcare provider","med list","alcohol","taking medication","medication restriction","health certificate","doctor note","doctor paperwork","fax","forms from my doctor","healthcare provider letter","cancer","diabetes","tumor","condition","can i donate if i have","bruise after","sick after","dizzy after","faint after","swelling after","pain after","infection from donat","arm is swollen","arm is sore","not feeling well after","medical forms","medical review","documentation from my doctor","permission from my doctor","disqualified medication"],
+    opening: "Here\u2019s what you should know about medications and medical documentation for donating:",
+    bullets: [
+      "You may donate while taking <strong>most prescription medications</strong> \u2014 most do not require a Healthcare Provider Letter.",
+      "Eligibility depends on the specific medication, dosage, and underlying condition, and is <strong>determined at your appointment</strong>.",
+      "Bring a <strong>list of current medications</strong> and be ready to share your health history.",
+      "If medical documentation is needed, <strong>templates will be provided</strong> at your appointment. Documents can be faxed or mailed to your center.",
+      "Once received, a <strong>Medical Support Specialist</strong> will contact you after review."
+    ],
+    closing: "Visit the Health and Nutrition page on the BioLife website for tips on staying healthy before and after donation.",
+    includedIntents: ["MedicationInfo","MedicalPaperwork","Medications","MedListAndDocs","MedicalDocumentation","HealthGuidance"],
+    followUps: ["Antibiotics","BirthControl","SurgeryHistory","RecentVaccination"]
+  },
+  "appointment_scheduling": {
+    label: "Appointment Scheduling",
+    keywords: ["schedule","book","appointment","make an appointment","set up","donate today","when can i come","time slot","availability","next available","walk in","walk-in","openings","morning appointment","evening slot","same-day","last-minute","check in early","arriving late","physical appointment","physical exam","donation slot","time slots","appointment slots","schedule online","create appointment","book my appointment","arrange my appointment","plan my visit","schedule appt","schedule an appointment","do i need to schedule","looking for availability","earliest time","afternoon donation","evening availability","weekend appointment","accepting walk-ins","running late","how early"],
+    opening: "Here\u2019s how to schedule your donation appointment at BioLife:",
+    bullets: [
+      "Log into your BioLife account, go to the <strong>Appointment Scheduler</strong>, choose your center, date, and time, and confirm.",
+      "You can book up to <strong>6 appointments</strong> or schedule up to <strong>21 days</strong> in advance.",
+      "Healthy donors may donate <strong>twice per 7-day period</strong> with at least one day between donations.",
+      "Appointments may fill quickly \u2014 check the website or app regularly for availability.",
+      "<strong>Walk-ins are welcome</strong>, but scheduling ahead is recommended to ensure your spot."
+    ],
+    closing: "Download the BioLife App for the easiest scheduling experience!",
+    includedIntents: ["WalkInAppointments","ScheduleOnline","AppointmentAvailability","ScheduleMultiple"],
+    followUps: ["PhysicalAppointmentScheduling","CheckDayAndTime","ConfirmAppointmentDetails","AppointmentAvailability"]
+  },
+  "manage_appointment": {
+    label: "Manage Existing Appointment",
+    keywords: ["reschedule","cancel","change appointment","modify","update appointment","move appointment","cancel my","can't make it","need to change","different time","different day","different date","move my appointment","switch my appointment","change my appointment","cancel my appointment","cancel my donation","rescheduling","why was my appointment cancel","appointment was cancel","auto-cancel","confirmation email","i need to move","cancel and reschedule","i want to cancel","i need to reschedule","can i change","been trying to cancel"],
+    opening: "Here\u2019s how to manage your existing BioLife appointment:",
+    bullets: [
+      "To <strong>reschedule</strong>: Go to My Appointments, open the appointment, and click Reschedule.",
+      "To <strong>cancel</strong>: Cancel anytime through My Appointments on the BioLife website or app.",
+      "Check your appointment time and location on the <strong>My Appointments</strong> page.",
+      "If you didn\u2019t receive a confirmation email, make sure you\u2019re <strong>opted in for communications</strong>.",
+      "Auto-canceled appointments (due to center issues or deferral) will trigger a notification. Donor status may take <strong>up to 24 hours</strong> to update."
+    ],
+    closing: "Remember, you can donate up to twice per 7-day period with at least one day between donations.",
+    includedIntents: ["RescheduleSteps","ConfirmAppointmentDetails","CancelSteps","AutoCancelInfo"],
+    followUps: ["ScheduleOnline","RescheduleAfterClosure","RescheduleMultipleAppointments","AppointmentAvailability"]
+  },
+  "account_login": {
+    label: "Account Access / Login Help",
+    keywords: ["login","log in","sign in","password","forgot password","can't access","locked out","username","reset password","credentials","register","registration","not able to register","can't register","help me register","cannot log in","don't remember my login","error logging in","error when logging in","verification email","forgot username","forgot credentials","lost password","lost username","signing in","problem with login","problems with account","can't log in","password reset","restore my password","get back my password","figure out my password"],
+    opening: "Here\u2019s how to get back into your BioLife account:",
+    bullets: [
+      "Use the <strong>same credentials</strong> for both the BioLife app and website.",
+      "Forgot your password? Click <strong>\"Forgot Password\"</strong> on the login page for a reset link.",
+      "For profile updates, notification preferences, or other account issues, use the <strong>contact us form</strong> on the BioLife website."
+    ],
+    closing: "Our team will assist you promptly with any account-related concerns.",
+    includedIntents: ["LoginIssues","AccountAndTechHelp"],
+    followUps: ["AppOrWebsiteIssues","IdMismatch","ScheduleOnline"]
+  },
+  "app_website_issues": {
+    label: "App / Website Technical Issues",
+    keywords: ["website","bug","crash","not working","glitch","technical","broken link","loading","slow to load","update app","download","page not found","server error","site is down","website is down","can't access website","cannot access app","502","404","403","site unreachable","connection reset","ssl certificate","service unavailable","gateway timeout","access denied","app is not working","site not responsive","site can't be reached","biolife site","website issue","app issue","broken link on the app","error submitting","images not loading","search not working","layout","login button unresponsive"],
+    opening: "If you\u2019re having trouble with the BioLife app or website, here are some steps to try:",
+    bullets: [
+      "Clear your <strong>browser cache</strong> or try using a different browser.",
+      "Check your <strong>internet connection</strong> and try again.",
+      "If issues persist, submit details along with your name and phone number via the <strong>contact us form</strong> on the BioLife website."
+    ],
+    closing: "Our team will respond promptly to help resolve any technical issues.",
+    includedIntents: ["AppOrWebsiteIssues","WebsiteIssue","TechnicalQuestions"],
+    followUps: ["LoginIssues","AccountAndTechHelp","IdMismatch","VerifySsnAndName"]
+  },
+  "center_info_location": {
+    label: "Center Info & Location",
+    keywords: ["center","location","near me","hours","open","close","closure","address","directions","zip code","nearby","phone number for the center","contact the center","hours of operation","what time do you open","what time do you close","business hours","holiday","open today","staff at the center","change center","switch center","different center","transfer location","transfer center","find a center","nearest center","center near me","closest center","locate a center","find center","nearest biolife","nearest location","center in my area","donation center","switch donation","change donation location","change bio life center","change biolife location","moved to a different","change my center","center hours","when do you open","when do you close","when do center open"],
+    opening: "Here\u2019s how to find and learn about BioLife centers near you:",
+    bullets: [
+      "Enter your <strong>ZIP code</strong> on the Locations tab of the BioLife website or app to find nearby centers with hours, directions, and contact info.",
+      "Each center operates on its <strong>own schedule</strong> and may offer different promotions.",
+      "You can donate at <strong>any BioLife location</strong> \u2014 except for your yearly Physical Donation, which must be within your zip code range.",
+      "To change your center, email <strong>US.BioLife.Customer.Experience@Takeda.com</strong>.",
+      "Closures are marked in <strong>My Appointments</strong>. Unexpected closures trigger an email and a banner on the website/app."
+    ],
+    closing: "Make sure you\u2019re opted in for updates so you never miss a closure notification!",
+    includedIntents: ["FindACenter","FindCenter","CenterHours","ChangeMyCenter","CenterOperations","CenterInfoAndAccess","CenterInformation","ClosureDetails","UnexpectedClosure"],
+    followUps: ["CheckDayAndTime","AppointmentAvailability","ScheduleOnline","VerifyEligibility"]
+  },
+  "id_ssn_proof": {
+    label: "ID, SSN & Proof Requirements",
+    keywords: ["identification","ssn","social security","proof of address","address proof","what to bring","photo id","passport","driver license","lease","utility bill","bank statement","piece of mail","proof of residency","itin","what can i use for proof","what can i bring","just moved","prove where i live","proof of local address","prove my address","w2 form","auto insurance","apartment lease","rental agreement","mail with my address","no proof of address","social security card","social security number","don't have my social security","what can i use instead","acceptable id","government id","state id","documents to bring","what do i need to bring"],
+    opening: "Here\u2019s what you\u2019ll need to bring to your BioLife visit:",
+    bullets: [
+      "A <strong>valid, undamaged government-issued photo ID</strong> (driver\u2019s license, state ID, or passport).",
+      "<strong>Proof of local address</strong>: lease, utility bill, or mail postmarked within 60 days. Electronic proof is accepted.",
+      "Your <strong>SSN</strong> is verified through a secure system \u2014 just bring your photo ID.",
+      "If your <strong>name has changed</strong>, bring a supporting document (e.g., marriage certificate).",
+      "You must have a permanent address within <strong>~40 miles</strong> of the center.",
+      "No proof of address is needed for your <strong>first visit after moving</strong>, but you\u2019ll need it for future donations."
+    ],
+    closing: "For ID discrepancies, bring additional documents like a passport or name change record.",
+    includedIntents: ["AcceptableIdAndProof","ProveYourAddress","VerifySsnAndName","IdentityAndVerification","IdMismatch","AddressAndResidency"],
+    followUps: ["FirstVisitCheck","PrepForAppointment","ScheduleOnline","VerifyEligibility"]
+  },
+  "rewards_loyalty": {
+    label: "Rewards / Loyalty Overview",
+    keywords: ["rewards","loyalty","points","my biolife rewards","earn points","redeem","gift card","badges","milestones","loyalty program","loyalty points","achievement","redeem points","rewards program","reward points"],
+    opening: "Here\u2019s how My BioLife Rewards works:",
+    bullets: [
+      "Earn loyalty points by <strong>donating, referring friends, and reaching milestones</strong>.",
+      "Earn <strong>achievement badges</strong> along the way \u2014 no limits on referrals!",
+      "Redeem points for <strong>gift cards, charitable donations, or extra funds</strong> on your BioLife Debit Card.",
+      "Extra funds are available within <strong>24 hours</strong> of redemption."
+    ],
+    closing: "Sign up through the BioLife website or app to start earning and explore your redemption options!",
+    includedIntents: ["EarnPoints","RedeemPoints","RewardsAndReferrals","LoyaltyProgram","MyBioLifeRewardsSelection"],
+    followUps: ["ReferAFriend","CouponsAndPromos","CenterPromotions","PaymentOverview"]
+  },
+  "referral_program": {
+    label: "Referral Program",
+    keywords: ["refer","referral","tell a friend","invite","refer a friend","referral bonus","refer a buddy","refer a family","bring my friend","bring my wife","bring my husband","friend want to join","friend who wants to donate","buddy bonus","bring new donor","reference program","tell my friend","refer my sister","refer someone","referral program","bring a friend"],
+    opening: "Here\u2019s how BioLife\u2019s referral program works:",
+    bullets: [
+      "Share your name with someone who has <strong>never donated at BioLife</strong>.",
+      "After they complete <strong>two donations within 30 days</strong> and mention your name, you\u2019ll receive a referral bonus.",
+      "You must be an <strong>active donor</strong> to participate. Bonus amount varies by center.",
+      "If your bonus is delayed, contact your center or email <strong>US.BioLife.Customer.Experience@Takeda.com</strong> with your friend\u2019s name and donation location."
+    ],
+    closing: "There\u2019s no limit on how many friends you can refer!",
+    includedIntents: ["ReferAFriend","ReferralBonus"],
+    followUps: ["EarnPoints","RedeemPoints","CouponsAndPromos","CenterPromotions"]
+  },
+  "first_time_donor": {
+    label: "First-Time Donor / What to Expect",
+    keywords: ["first time","new donor","what to expect","first visit","never donated","first donation","getting started","how does it work","what happens","prepare","first appointment","first-time donor","new to biolife","my first","before my first","i've never donated","donating for the first time","what do i need for my first","new to plasma","start donating","first timer","brand new donor","how to start","beginning donor"],
+    opening: "Welcome to BioLife! Here\u2019s everything you need to know for your first visit:",
+    bullets: [
+      "Start by creating a profile on the <strong>BioLife website or app</strong> \u2014 this unlocks Donor Registration and the What to Expect guide.",
+      "Bring a <strong>valid photo ID, proof of address, and a list of current medications</strong>. Arrive at least <strong>10 minutes early</strong>.",
+      "Drink plenty of <strong>water or juice</strong> the night before and day of. Eat a <strong>balanced meal within 3 hours</strong> of your visit.",
+      "During your visit: <strong>SSN verification, health history review, vitals check</strong>, then your donation.",
+      "The whole process takes about <strong>2 hours</strong> for first-time donors."
+    ],
+    closing: "Check the Health and Nutrition page on the BioLife website for more preparation tips. We look forward to seeing you!",
+    includedIntents: ["FirstTimeGuide","FirstVisitCheck","AppointmentEssentials","PrepForAppointment","EatAndHydrate","AppointmentExpectations"],
+    followUps: ["VerifySsnAndName","AcceptableIdAndProof","ScheduleOnline","VerifyEligibility"]
+  }
+};
+
+// ============================================================
+// ENGINE
+// ============================================================
+function findL2ByKey(l2Key) {
+  for (const l1Key of Object.keys(L1_CATEGORIES)) {
+    const l1 = L1_CATEGORIES[l1Key];
+    if (l1.l2[l2Key]) {
+      return { ...l1.l2[l2Key], l1Key, l2Key, response: INTENT_RESPONSES[l2Key] ? INTENT_RESPONSES[l2Key].response : "" };
+    }
+  }
+  return null;
+}
+
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+
+function createAvatarHTML() {
+  return '<div class="bot-avatar"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="none" stroke="#f47920" stroke-width="2.5" opacity="0.3"/><circle cx="20" cy="20" r="13" fill="none" stroke="#f47920" stroke-width="2.5" opacity="0.5"/><circle cx="20" cy="20" r="8" fill="none" stroke="#f47920" stroke-width="2.5" opacity="0.8"/><circle cx="20" cy="20" r="3" fill="#f47920"/></svg></div>';
+}
+
+function addBotMessage(html) {
+  var row = document.createElement('div');
+  row.className = 'message-row bot';
+  row.innerHTML = createAvatarHTML() + '<div class="message-bubble">' + html + '</div>';
+  chatMessages.appendChild(row);
+  scrollToBottom();
+}
+
+function addUserMessage(text) {
+  var row = document.createElement('div');
+  row.className = 'message-row user';
+  row.innerHTML = '<div class="message-bubble">' + escapeHTML(text) + '</div>';
+  chatMessages.appendChild(row);
+  scrollToBottom();
+}
+
+function showTypingThen(callback, delay) {
+  delay = delay || 800;
+  var row = document.createElement('div');
+  row.className = 'message-row bot';
+  row.innerHTML = createAvatarHTML() + '<div class="message-bubble"><div class="typing-indicator"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>';
+  chatMessages.appendChild(row);
+  scrollToBottom();
+  setTimeout(function() {
+    row.remove();
+    callback();
+    scrollToBottom();
+  }, delay);
+}
+
+function showChips(chips, containerClass) {
+  var container = document.createElement('div');
+  container.className = 'chips-container ' + (containerClass || '');
+  chips.forEach(function(chip) {
+    var btn = document.createElement('button');
+    btn.className = 'chip-btn ' + (chip.className || '');
+    btn.innerHTML = (chip.icon ? '<span class="chip-icon">' + chip.icon + '</span>' : '') + chip.label;
+    btn.onclick = function() {
+      disableChips(container);
+      chip.action();
+    };
+    container.appendChild(btn);
+  });
+  chatMessages.appendChild(container);
+  scrollToBottom();
+}
+
+function disableChips(container) {
+  var btns = container.querySelectorAll('.chip-btn');
+  for (var i = 0; i < btns.length; i++) {
+    btns[i].disabled = true;
+    btns[i].style.opacity = '0.5';
+    btns[i].style.cursor = 'default';
+    btns[i].onclick = null;
+  }
+}
+
+function scrollToBottom() {
+  requestAnimationFrame(function() { chatMessages.scrollTop = chatMessages.scrollHeight; });
+}
+
+function escapeHTML(str) {
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function matchIntent(userText) {
+  var lower = userText.toLowerCase().trim();
+  var bestMatch = null;
+  var bestScore = 0;
+  var keys = Object.keys(NLU_CATEGORIES);
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    var cat = NLU_CATEGORIES[key];
+    var score = 0;
+    for (var j = 0; j < cat.keywords.length; j++) {
+      if (lower.indexOf(cat.keywords[j].toLowerCase()) !== -1) {
+        score += cat.keywords[j].split(' ').length;
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = { categoryKey: key, category: cat, score: score };
+    }
+  }
+  return bestScore >= 1 ? bestMatch : null;
+}
+
+function resolveFollowUpChips(followUpKeys) {
+  var chips = [];
+  for (var i = 0; i < followUpKeys.length; i++) {
+    var fuKey = followUpKeys[i];
+    var l2 = findL2ByKey(fuKey);
+    if (l2) {
+      (function(k) { chips.push({ label: l2.label, icon: l2.icon || "", action: function() { handleL2Click(k); } }); })(fuKey);
+    } else {
+      var ir = INTENT_RESPONSES[fuKey];
+      if (ir) {
+        (function(k) { chips.push({ label: ir.label, icon: "", action: function() { handleIntentClick(k); } }); })(fuKey);
+      }
+    }
+  }
+  chips.push({ label: "Main Menu", icon: "\ud83c\udfe0", action: function() { showMainMenu(); } });
+  return chips;
+}
+
+// ============================================================
+// CONVERSATION FLOW
+// ============================================================
+function startChat() {
+  chatMessages.innerHTML = '';
+  showTypingThen(function() {
+    addBotMessage('<span class="disclaimer-text">Welcome to BioLife\'s chatbot. This chatbot uses AI to assist with general inquiries. Interactions may be recorded and used to improve our services. This chatbot is not intended for adverse reporting. To learn more, please review our <a href="#">Privacy Notice</a> on the BioLife website.</span>');
+    showTypingThen(function() {
+      addBotMessage("Please select your preferred language below:");
+      showChips([
+        { label: "English", icon: "", action: function() { onLanguageSelected("English"); } },
+        { label: "Espa\u00f1ol", icon: "", action: function() { onLanguageSelected("Espa\u00f1ol"); } }
+      ], 'language-chips');
+    }, 600);
+  }, 500);
+}
+
+function onLanguageSelected(lang) {
+  addUserMessage(lang);
+  showTypingThen(function() {
+    addBotMessage("Please tell us about you:");
+    showChips([
+      { label: "I'm considering becoming a donor", action: function() { onDonorType("I'm considering becoming a donor"); } },
+      { label: "I actively donate with BioLife today", action: function() { onDonorType("I actively donate with BioLife today"); } },
+      { label: "I have donated in the past", action: function() { onDonorType("I have donated in the past"); } },
+      { label: "Other", action: function() { onDonorType("Other"); } }
+    ], 'donor-type-chips');
+  }, 600);
+}
+
+function onDonorType(type) {
+  addUserMessage(type);
+  if (type.indexOf("considering") !== -1) {
+    showTypingThen(function() {
+      var ctaRow = document.createElement('div');
+      ctaRow.className = 'message-row bot';
+      ctaRow.innerHTML = createAvatarHTML() + '<div class="signup-cta" onclick="handleL2Click(\'ScheduleOnline\')"><span class="cta-text">Sign Up Today</span><span class="cta-arrow">\u2192</span></div>';
+      chatMessages.appendChild(ctaRow);
+      showMainMenu();
+    }, 500);
+  } else {
+    showMainMenu();
+  }
+}
+
+function showMainMenu() {
+  showTypingThen(function() {
+    addBotMessage("How can I assist you?");
+    addBotMessage("Please select an option below to continue, or type your question in the box below.");
+    var chips = [];
+    var keys = Object.keys(L1_CATEGORIES);
+    for (var i = 0; i < keys.length; i++) {
+      (function(key) {
+        var cat = L1_CATEGORIES[key];
+        chips.push({ label: cat.label, icon: cat.icon, className: 'l1', action: function() { handleL1Click(key); } });
+      })(keys[i]);
+    }
+    showChips(chips);
+  }, 600);
+}
+
+function handleL1Click(l1Key) {
+  var l1 = L1_CATEGORIES[l1Key];
+  addUserMessage(l1.label);
+  showTypingThen(function() {
+    addBotMessage(l1.icon + ' <strong>' + l1.label + '</strong> \u2014 Great! Here are some topics I can help with:');
+    var chips = [];
+    var l2Keys = Object.keys(l1.l2);
+    for (var i = 0; i < l2Keys.length; i++) {
+      (function(l2Key) {
+        var l2 = l1.l2[l2Key];
+        chips.push({ label: l2.label, icon: l2.icon, action: function() { handleL2Click(l2Key); } });
+      })(l2Keys[i]);
+    }
+    showChips(chips);
+  }, 600);
+}
+
+function handleL2Click(l2Key) {
+  var l2Data = findL2ByKey(l2Key);
+  if (!l2Data) {
+    handleIntentClick(l2Key);
+    return;
+  }
+  addUserMessage(l2Data.label);
+  showTypingThen(function() {
+    addBotMessage(l2Data.response);
+    if (l2Data.followUps && l2Data.followUps.length > 0) {
+      showTypingThen(function() {
+        addBotMessage("Would you like help with anything else?");
+        showChips(resolveFollowUpChips(l2Data.followUps));
+      }, 400);
+    }
+  }, 700);
+}
+
+function handleIntentClick(intentKey) {
+  var intentData = INTENT_RESPONSES[intentKey];
+  if (!intentData) return;
+  addUserMessage(intentData.label);
+  showTypingThen(function() {
+    addBotMessage(intentData.response);
+    showTypingThen(function() {
+      addBotMessage("Would you like help with anything else?");
+      showChips([{ label: "Main Menu", icon: "\ud83c\udfe0", action: function() { showMainMenu(); } }]);
+    }, 400);
+  }, 700);
+}
+
+function sendUserMessage() {
+  var text = chatInput.value.trim();
+  if (!text) return;
+  chatInput.value = '';
+  addUserMessage(text);
+  var match = matchIntent(text);
+  showTypingThen(function() {
+    if (match) {
+      var cat = match.category;
+      var html = '<div class="nlu-badge">\ud83e\udd16 Detected: ' + cat.label + '</div>';
+      html += '<p class="nlu-opening">' + cat.opening + '</p>';
+      html += '<ul class="nlu-bullet-list">';
+      for (var i = 0; i < cat.bullets.length; i++) {
+        html += '<li>' + cat.bullets[i] + '</li>';
+      }
+      html += '</ul>';
+      html += '<p class="nlu-closing">' + cat.closing + '</p>';
+      addBotMessage(html);
+      showTypingThen(function() {
+        showChips(resolveFollowUpChips(cat.followUps));
+      }, 400);
+    } else {
+      addBotMessage("I'm not sure I understood that. Let me show you the available topics so I can better assist you:");
+      showTypingThen(function() {
+        var chips = [];
+        var keys = Object.keys(L1_CATEGORIES);
+        for (var i = 0; i < keys.length; i++) {
+          (function(key) {
+            var cat2 = L1_CATEGORIES[key];
+            chips.push({ label: cat2.label, icon: cat2.icon, className: 'l1', action: function() { handleL1Click(key); } });
+          })(keys[i]);
+        }
+        showChips(chips);
+      }, 400);
+    }
+  }, 800);
+}
+
+function restartChat() { startChat(); }
+
+function showMenu() {
+  if (confirm('Restart the conversation?')) restartChat();
+}
+
+startChat();
+</script>
+</body>
+</html>

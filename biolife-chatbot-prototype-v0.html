@@ -485,7 +485,7 @@ const NLU_CATEGORIES = {
   },
   "appointment_scheduling": {
     label: "Appointment Scheduling",
-    keywords: ["schedule","book","appointment","make an appointment","set up","donate today","when can i come","time slot","availability","next available","walk in","walk-in","openings","morning appointment","evening slot","same-day","last-minute","check in early","arriving late","physical appointment","physical exam","donation slot","time slots","appointment slots","schedule online","create appointment","book my appointment","arrange my appointment","plan my visit","schedule appt","schedule an appointment","do i need to schedule","looking for availability","earliest time","afternoon donation","evening availability","weekend appointment","accepting walk-ins","running late","how early"],
+    keywords: ["schedule an appointment","book an appointment","make an appointment","set up appointment","set up my appointment","donate today","when can i come","time slot","availability","next available","walk in","walk-in","openings","morning appointment","evening slot","same-day","last-minute","check in early","arriving late","physical appointment","physical exam","donation slot","time slots","appointment slots","schedule online","create appointment","book my appointment","arrange my appointment","plan my visit","schedule appt","do i need to schedule","looking for availability","earliest time","afternoon donation","evening availability","weekend appointment","accepting walk-ins","running late","how early","schedule my appointment","book my donation","make appointment","want to schedule","want to book","how to schedule","how to book","how can i schedule","how can i book","need to schedule"],
     opening: "Here\u2019s how to schedule your donation appointment at BioLife:",
     bullets: [
       "Log into your BioLife account, go to the <strong>Appointment Scheduler</strong>, choose your center, date, and time, and confirm.",
@@ -702,41 +702,25 @@ function escapeHTML(str) {
   return div.innerHTML;
 }
 
-function escapeRegex(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function keywordMatches(text, keyword) {
-  var normalizedKeyword = keyword.toLowerCase().trim();
-  if (!normalizedKeyword) return false;
-  var pattern = escapeRegex(normalizedKeyword).replace(/\s+/g, '\\s+');
-  var regex = new RegExp('\\b' + pattern + '\\b', 'i');
-  return regex.test(text);
-}
-
 function matchIntent(userText) {
   var lower = userText.toLowerCase().trim();
   var bestMatch = null;
   var bestScore = 0;
-  var bestPriority = -1;
-  var categoryPriority = {
-    "manage_appointment": 2,
-    "appointment_scheduling": 1
-  };
   var keys = Object.keys(NLU_CATEGORIES);
   for (var i = 0; i < keys.length; i++) {
     var key = keys[i];
     var cat = NLU_CATEGORIES[key];
-    var priority = categoryPriority[key] || 0;
     var score = 0;
     for (var j = 0; j < cat.keywords.length; j++) {
-      if (keywordMatches(lower, cat.keywords[j])) {
-        score += cat.keywords[j].split(' ').length;
+      var kw = cat.keywords[j].toLowerCase();
+      // Use word-boundary matching to avoid substring false positives
+      var pattern = new RegExp('(?:^|[\\s,\'\"!?.()])' + kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:$|[\\s,\'\"!?.()])', 'i');
+      if (pattern.test(' ' + lower + ' ')) {
+        score += kw.split(' ').length;
       }
     }
-    if (score > bestScore || (score === bestScore && score > 0 && priority > bestPriority)) {
+    if (score > bestScore) {
       bestScore = score;
-      bestPriority = priority;
       bestMatch = { categoryKey: key, category: cat, score: score };
     }
   }
